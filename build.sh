@@ -16,6 +16,12 @@ BASE_PATH=$(cd "$WRT_CORE_PATH" && pwd)
 
 REPO_ROOT=$(cd "$BASE_PATH/.." && pwd)
 
+# shellcheck source=wrt_core/modules/package_manager.sh
+source "$BASE_PATH/modules/package_manager.sh"
+
+# 先校验 PACKAGE_MANAGER 取值，避免拉完源码才报错。
+requested_package_manager >/dev/null
+
 Dev=$1
 Build_Mod=$2
 
@@ -48,6 +54,7 @@ collect_supported_devs() {
 print_usage() {
     echo "Usage: $0 <device> [debug|container|container_debug|config_preview]"
     echo "       ./start.sh"
+    echo "Env:   PACKAGE_MANAGER=auto|apk|opkg  (default auto: apk when the upstream source supports it)"
 }
 
 print_supported_devs() {
@@ -307,6 +314,7 @@ print_config_fragment_summary() {
 
 print_config_preview() {
     print_config_fragment_summary
+    echo "Package manager: ${PACKAGE_MANAGER:-auto} (auto = apk when the upstream source supports it, otherwise opkg)"
     echo "Config assembly order:"
     echo "  1) $CONFIG_FILE"
     echo "  2) $BASE_PATH/deconfig/compile_base.config"
@@ -368,6 +376,7 @@ run_container_build() {
         -w /build \
         -e ADD_CONFIG_FRAGMENTS \
         -e REMOVE_CONFIG_FRAGMENTS \
+        -e PACKAGE_MANAGER \
         --shm-size=8g \
         --ipc=shareable \
         --ulimit nofile=65535:65535 \
@@ -432,14 +441,23 @@ fi
 
 "$BASE_PATH/update.sh" "$REPO_URL" "$REPO_BRANCH" "$BUILD_DIR" "$COMMIT_HASH"
 
+# update.sh 拉取源码后，再按源码树能力确定 apk / opkg。
+BUILD_PATH="$BASE_PATH/../$BUILD_DIR"
+PACKAGE_MANAGER_RESOLVED=$(resolve_package_manager "$BUILD_PATH")
+
 apply_config
+apply_package_manager_config "$BUILD_PATH/.config" "$PACKAGE_MANAGER_RESOLVED" "$BUILD_PATH"
 print_config_fragment_summary
+describe_package_manager "$PACKAGE_MANAGER_RESOLVED"
 remove_uhttpd_dependency
 
 cd "$BASE_PATH/../$BUILD_DIR"
 make defconfig
+verify_package_manager_config ".config" "$PACKAGE_MANAGER_RESOLVED"
 
-if grep -qE "^CONFIG_TARGET_x86_64=y" "$CONFIG_FILE"; then
+# opkg 的 99-distfeeds.conf 才有架构替换问题；apk 由 base-files 按 feeds.conf 生成
+# /etc/apk/repositories.d/distfeeds.list，架构由构建系统自动填入。
+if [ "$PACKAGE_MANAGER_RESOLVED" = "opkg" ] && grep -qE "^CONFIG_TARGET_x86_64=y" "$CONFIG_FILE"; then
     DISTFEEDS_PATH="$BASE_PATH/../$BUILD_DIR/package/emortal/default-settings/files/99-distfeeds.conf"
     if [ -d "${DISTFEEDS_PATH%/*}" ] && [ -f "$DISTFEEDS_PATH" ]; then
         sed -i 's/aarch64_cortex-a53/x86_64/g' "$DISTFEEDS_PATH"

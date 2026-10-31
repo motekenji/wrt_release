@@ -215,8 +215,8 @@ fix_quickstart() {
     if [ -f "$file_path" ]; then
         echo "正在修复 quickstart..."
         if ! curl_retry -fsSL -o "$file_path" "$url"; then
-            echo "错误：从 $url 下载 istore_backend.lua 失败" >&2
-            exit 1
+            # 该文件属于 iStore 系的 opkg 后端，下载失败不应中断整个构建。
+            echo "警告：从 $url 下载 istore_backend.lua 失败，保留原文件继续构建。" >&2
         fi
     fi
 

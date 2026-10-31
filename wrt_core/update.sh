@@ -31,6 +31,7 @@ BASE_PATH=${BASE_PATH:-$SCRIPT_DIR}
 
 # 按静态职责加载模块，执行顺序仍由本脚本统一控制。
 source "$SCRIPT_DIR/modules/network.sh"
+source "$SCRIPT_DIR/modules/package_manager.sh"
 source "$SCRIPT_DIR/modules/repo.sh"
 source "$SCRIPT_DIR/modules/feeds.sh"
 source "$SCRIPT_DIR/modules/custom_feed.sh"

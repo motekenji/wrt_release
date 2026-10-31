@@ -2,6 +2,7 @@
 # 兼容旧入口，包与 custom_feed 逻辑已拆入专用模块。
 
 _MODULE_DIR=$(dirname "${BASH_SOURCE[0]}")
+source "$_MODULE_DIR/package_manager.sh"
 source "$_MODULE_DIR/custom_feed.sh"
 source "$_MODULE_DIR/verify.sh"
 source "$_MODULE_DIR/feed_source_fixes.sh"

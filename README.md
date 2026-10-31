@@ -59,6 +59,52 @@ REMOVE_CONFIG_FRAGMENTS=proxy ./build.sh x64_immwrt config_preview
 
 GitHub Actions 的手动构建也提供 `add_fragments` 与 `remove_fragments` 输入项，语义与上述环境变量一致。
 
+### 包管理器（apk / opkg）
+
+固件使用的包管理器由环境变量 `PACKAGE_MANAGER` 控制：
+
+| 取值 | 说明 |
+| --- | --- |
+| `auto`（默认） | 上游源码树支持 apk 时使用 apk，否则回退到 opkg。 |
+| `apk` | 强制使用 apk；源码树不支持时直接报错退出，不会静默编出 opkg 固件。 |
+| `opkg` | 强制使用传统 opkg，用于需要 iStore 等 opkg 专用插件的场景。 |
+
+```bash
+PACKAGE_MANAGER=apk ./build.sh x64_immwrt      # 明确要求 apk
+PACKAGE_MANAGER=opkg ./build.sh x64_immwrt     # 回到 opkg
+./build.sh x64_immwrt                          # auto
+```
+
+apk 是 OpenWrt 25.12 起的官方默认包管理器。脚本在 `make defconfig` 之前把 `CONFIG_USE_APK=y` 写入 `.config`，让 Kconfig 重新计算默认包（`apk-mbedtls` 取代 `opkg`）与依赖；`make defconfig` 之后还会校验结果，避免出现“要求 apk 却编出 opkg”的静默错误。
+
+apk 模式下的差异：
+
+- 固件内包管理器命令为 `/usr/bin/apk`，软件源为 `/etc/apk/repositories.d/distfeeds.list`（由 base-files 依据 `feeds.conf` 生成，条目形如 `.../<arch>/<feed>/packages.adb`），构建产物中的软件包格式为 `.apk`。
+- 不再注入 `wrt_core/modules/service_fixes.sh` 里的 opkg `distfeeds.conf`，也不再对 x86 做 opkg 源的架构替换。
+- 不再给 opkg 打 `001-fix-provides-version-parsing.patch`。
+- 显式关闭 `opkg`；若 `make defconfig` 后仍有包把 opkg 拉回来，构建会直接失败（`APK_ALLOW_OPKG=1` 可跳过），避免镜像里同时存在两套包数据库。
+- 默认关闭按 opkg 设计的 iStore 系插件（`luci-app-istorex`、`luci-app-store`）；确实想保留时用 `APK_KEEP_ISTORE=1`，但它们只能配合 opkg 固件正常工作。
+- 源码树定义 `PER_FEED_REPO` 时会自动置 `y`，让 distfeeds 带上 base/luci/packages 等各 feed 的 `packages.adb`；kmods 源仍需要上游 `CONFIG_BUILDBOT=y`（本仓库不设置），因此极简列表属正常现象，构建后可直接在固件里 `cat /etc/apk/repositories.d/distfeeds.list` 查看。
+
+可用环境变量：
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `PACKAGE_MANAGER` | `auto` | `auto` / `apk` / `opkg` |
+| `APK_KEEP_ISTORE` | `0` | 设为 `1` 时 apk 模式仍保留 iStore 系插件 |
+| `APK_ALLOW_OPKG` | `0` | 设为 `1` 时允许 apk 固件里同时出现 opkg（不推荐） |
+
+基于 OpenWrt 21.02 / 24.10 等旧分支的设备（例如 `redmi_ax6000_immwrt21`）没有可用的 apk，`auto` 会继续使用 opkg。
+
+只想确认配置而不产出固件时，可用 debug 模式（执行到 `make defconfig` 即停止）：
+
+```bash
+PACKAGE_MANAGER=apk ./build.sh x64_immwrt debug
+grep -E 'USE_APK|PACKAGE_apk' immortalwrt/.config
+```
+
+GitHub Actions 手动构建新增 `package_manager` 输入项，取值同上。
+
 编译完成后，脚本会从 `<BUILD_DIR>/bin/targets/` 收集固件文件到仓库根目录的 `firmware/`。每次完整构建前会清理旧的目标固件文件，`firmware/Packages.manifest` 会被移除。
 
 ## 5. 支持设备
@@ -139,7 +185,7 @@ https://github.com/kenzok8/small-package.git
 - `wrt_core/compilecfg/`：设备构建元信息 `.ini`。
 - `wrt_core/deconfig/`：设备和共享默认配置 `.config`。
 - `wrt_core/deconfig/fragments/`：可组合配置片段。
-- `wrt_core/modules/`：模块化脚本，包括仓库准备、网络重试、feeds/custom_feed、源码修正、LuCI 修正、服务修正、验证、Docker、CUPS 等静态职责模块。
+- `wrt_core/modules/`：模块化脚本，包括仓库准备、网络重试、feeds/custom_feed、源码修正、LuCI 修正、服务修正、验证、Docker、CUPS、包管理器（apk/opkg）选择等静态职责模块。
 - `wrt_core/patches/`：补丁、默认设置、Wi-Fi 初始化、NSS 诊断、PBR 规则和其他构建时注入文件。
 
 ## 9. OAF（应用过滤）功能使用说明

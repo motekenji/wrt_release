@@ -46,6 +46,16 @@ EOF
 install_opkg_distfeeds() {
     local emortal_def_dir="$BUILD_DIR/package/emortal/default-settings"
     local distfeeds_conf="$emortal_def_dir/files/99-distfeeds.conf"
+    local package_manager
+
+    package_manager=$(resolve_package_manager "$BUILD_DIR")
+
+    # apk 模式下由 base-files 依据 feeds.conf 生成
+    # /etc/apk/repositories.d/distfeeds.list；再注入 opkg 格式 feeds 会互相覆盖。
+    if [ "$package_manager" = "apk" ]; then
+        echo "apk 模式：跳过 opkg distfeeds 注入，使用 base-files 生成的 apk 软件源。"
+        return 0
+    fi
 
     if [ -d "$emortal_def_dir" ] && [ ! -f "$distfeeds_conf" ]; then
         cat <<'EOF' >"$distfeeds_conf"
@@ -133,7 +143,16 @@ fix_openssl_ktls() {
 fix_opkg_check() {
     local patch_file="$BASE_PATH/patches/001-fix-provides-version-parsing.patch"
     local opkg_dir="$BUILD_DIR/package/system/opkg"
-    if [ -f "$patch_file" ]; then
+    local package_manager
+
+    package_manager=$(resolve_package_manager "$BUILD_DIR")
+
+    # 该补丁只修正 opkg 的 Provides 版本解析，apk 模式无意义。
+    if [ "$package_manager" = "apk" ]; then
+        return 0
+    fi
+
+    if [ -f "$patch_file" ] && [ -d "$opkg_dir" ]; then
         install -Dm644 "$patch_file" "$opkg_dir/patches/001-fix-provides-version-parsing.patch"
     fi
 }
