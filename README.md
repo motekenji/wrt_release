@@ -1,4 +1,9 @@
-# 编译指南
+# 编译指南（apk 包管理器版）
+
+> **本版本默认使用 apk 包管理器**（OpenWrt 25.12 起的官方包管理器，取代 opkg）。
+> 构建时可用 `PACKAGE_MANAGER=apk` / `opkg` / `auto` 切换，详见 [包管理器（apk / opkg）](#包管理器apk--opkg)。
+>
+> apk 版特征：固件内命令是 `/usr/bin/apk`，软件源 `/etc/apk/repositories.d/distfeeds.list`，构建产物是 `.apk`；opkg 版则是 `/bin/opkg`、`/etc/opkg/distfeeds.conf`、`.ipk`。
 
 本仓库用于按设备配置自动拉取 OpenWrt / ImmortalWrt / LiBwrt 源码、应用自定义补丁与软件包配置，并输出固件到 `firmware/` 目录。
 
