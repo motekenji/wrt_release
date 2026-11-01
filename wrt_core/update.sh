@@ -77,6 +77,7 @@ stage_pre_install_source_fixes() {
     update_golang
     change_dnsmasq2full
     fix_mk_def_depends
+    fix_python3_libffi_dep
 
     update_default_lan_addr
     remove_something_nss_kmod

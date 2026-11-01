@@ -271,3 +271,25 @@ remove_tweaked_packages() {
         fi
     fi
 }
+
+
+# python3 的 CONFIGURE_ARGS 无条件带 --with-system-ffi，但 packages feed 里只声明了
+# libffi/host，目标版本编译 Modules/_ctypes 时可能拿不到 staging 里的 ffi.h。
+# 补一个目标 libffi 构建依赖，保证顺序与头文件。
+fix_python3_libffi_dep() {
+    local makefile_path="$BUILD_DIR/feeds/packages/lang/python/python3/Makefile"
+
+    [ -f "$makefile_path" ] || return 0
+
+    if grep -q '^PKG_BUILD_DEPENDS:=.*libffi' "$makefile_path"; then
+        return 0
+    fi
+
+    if grep -q '^PKG_BUILD_DEPENDS:=' "$makefile_path"; then
+        sed -i 's/^PKG_BUILD_DEPENDS:=/PKG_BUILD_DEPENDS:=libffi /' "$makefile_path"
+    else
+        sed -i '/^PKG_VERSION:=/a PKG_BUILD_DEPENDS:=libffi' "$makefile_path"
+    fi
+
+    echo "已为 python3 补充 libffi 构建依赖（Modules/_ctypes 需要 ffi.h）。"
+}
